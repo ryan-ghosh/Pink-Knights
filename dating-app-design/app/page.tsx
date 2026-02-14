@@ -291,7 +291,9 @@ export default function Home() {
             role="tabpanel"
           >
             {activeTab === "setups" && <DateSetupsView />}
-            {activeTab === "matches" && <SetupsView />}
+            {activeTab === "matches" && (
+              <SetupsView formData={formData} apiResponse={apiResponse} />
+            )}
             {activeTab === "profile" && <ProfileView />}
           </main>
           <div className="relative z-10">

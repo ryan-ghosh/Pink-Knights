@@ -1,9 +1,122 @@
 import json
 import boto3
 import os
+import re
 
 # Initialize the Bedrock Runtime client
-bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1') 
+bedrock_client = boto3.client('bedrock-runtime', region_name='us-east-1')
+
+# ==========================================
+# HARDCODED CANDIDATE PROFILES FOR DEMO
+# ==========================================
+DEMO_CANDIDATE_PROFILES = [
+    # FEMALE PROFILES
+    {
+        "name": "Alex - The Creative Nomad (Female)",
+        "profile": "I'm a freelance graphic designer who spends weekends exploring trail systems and discovering new coffee shops in converted barns—hiking boots and a well-worn vinyl collection are non-negotiable. My sense of humor tends toward the absurdist, and I appreciate someone who can laugh at the ridiculousness of everyday life without needing an explanation. Fair warning: I'm deeply suspicious of anyone who describes themselves as 'brutally honest' and I'd rather discuss literally anything other than UI frameworks over dinner."
+    },
+    {
+        "name": "Riley - The Culinary Artist (Female)",
+        "profile": "I'm a pastry chef at a Michelin-starred restaurant who moonlights as a food blogger, documenting my quest to find the perfect croissant in every neighborhood. I'm passionate about sustainable cooking, farmer's markets, and teaching people that good food doesn't have to be complicated. When I'm not in the kitchen, I'm probably at a jazz club, learning a new language, or planning my next food tour abroad. I believe the way to someone's heart is through their stomach, but I'm also looking for someone who can make me laugh until I cry."
+    },
+    {
+        "name": "Casey - The Musician (Female)",
+        "profile": "I'm a jazz pianist who plays at local venues three nights a week and teaches music theory during the day. Music is my language, and I express emotions through melodies better than words sometimes. I collect vintage records, write songs about everyday moments, and believe the best conversations happen at 2am over a shared plate of diner fries. I'm looking for someone who appreciates the arts, understands the creative process, and doesn't mind that my schedule is a bit unconventional."
+    },
+    {
+        "name": "Taylor - The Wellness Advocate (Female)",
+        "profile": "I'm a yoga instructor and wellness coach who's passionate about holistic health, meditation, and helping people find balance in their lives. I start every morning with a sunrise run and end most days with a home-cooked meal and a good documentary. I'm deeply spiritual but not preachy about it, and I believe in living intentionally and mindfully. I'm looking for someone who values self-care, personal growth, and authentic connections—someone who understands that taking care of yourself isn't selfish, it's necessary."
+    },
+    {
+        "name": "Quinn - The World Traveler (Female)",
+        "profile": "I'm a travel photographer who's been to 47 countries and counting, documenting cultures, landscapes, and human stories along the way. I work remotely as a freelance writer and photographer, which means I'm often planning my next adventure while finishing my current one. I love trying new foods, learning local customs, and meeting people from different backgrounds. I'm looking for someone who shares my wanderlust but also appreciates the beauty of coming home—someone who understands that the best trips are the ones you take with someone special."
+    },
+    {
+        "name": "Avery - The Bookworm (Female)",
+        "profile": "I'm a librarian who runs a book club and hosts monthly author readings at independent bookstores around the city. I read about 50 books a year across all genres, but I have a soft spot for magical realism and historical fiction. When I'm not reading, I'm probably writing short stories, exploring used bookstores, or having deep conversations about character development over coffee. I believe the best relationships are built on shared stories, both the ones we read and the ones we create together."
+    },
+    # MALE PROFILES
+    {
+        "name": "Jordan - The Tech Entrepreneur (Male)",
+        "profile": "I'm a startup founder who's passionate about building products that make people's lives easier, but I leave work at the office and recharge by cooking elaborate meals for friends and exploring hidden speakeasies. I love deep conversations about philosophy and psychology, and I'm always up for trying new experiences—whether that's a cooking class in Little Italy or a midnight bike ride through the city. I value authenticity over perfection and believe the best relationships are built on mutual respect and a shared sense of adventure."
+    },
+    {
+        "name": "Sam - The Outdoor Enthusiast (Male)",
+        "profile": "I'm a park ranger who spends most of my time hiking, rock climbing, and planning my next backpacking trip—I've summited peaks in three countries this year alone. When I'm not in the mountains, I'm probably at a local brewery trying new IPAs or volunteering at the animal shelter. I'm looking for someone who shares my love for nature but also appreciates a cozy night in with a good book and homemade soup. I believe life's too short to stay indoors when there's a trail waiting."
+    },
+    {
+        "name": "Morgan - The Intellectual Explorer (Male)",
+        "profile": "I'm a history professor who specializes in ancient civilizations, but my real passion is connecting the past to the present through travel and storytelling. I spend my summers leading educational tours through Europe and my winters writing about forgotten historical figures. I love museum dates, intellectual debates over wine, and people who can teach me something new. I'm looking for someone who's curious about the world, values learning, and doesn't mind that I'll probably drag you to every historical site in every city we visit."
+    },
+    {
+        "name": "Blake - The Fitness Enthusiast (Male)",
+        "profile": "I'm a personal trainer and nutrition coach who's passionate about helping people achieve their health goals, but I'm also a huge foodie who believes in balance—you'll find me at the gym at 6am and at the best taco spot in town at 8pm. I love trying new workout classes, cooking healthy meals, and exploring the city's food scene. I'm looking for someone who values health and wellness but doesn't take life too seriously, someone who can push me to try new things and laugh with me when I fail spectacularly."
+    }
+]
+
+def get_compatible_candidate_profile(user_profile, bedrock_client, model_id):
+    """Use AI to select the most compatible candidate profile based on user's input."""
+    
+    # Build a list of all candidate profiles for the AI to evaluate
+    candidates_list = "\n\n".join([
+        f"CANDIDATE {i+1} ({profile['name']}):\n{profile['profile']}"
+        for i, profile in enumerate(DEMO_CANDIDATE_PROFILES)
+    ])
+    
+    selection_prompt = f"""You are a matchmaking AI. Your task is to analyze a user's profile and select the MOST COMPATIBLE candidate from the list below.
+
+USER'S PROFILE:
+{user_profile}
+
+AVAILABLE CANDIDATES:
+{candidates_list}
+
+Based on the user's profile, interests, lifestyle, and preferences, select the candidate number (1-{len(DEMO_CANDIDATE_PROFILES)}) that would be the BEST MATCH for this user. Consider:
+- Shared interests and hobbies
+- Lifestyle compatibility
+- Personality alignment
+- Values and priorities
+- Complementary traits
+
+Respond with ONLY the candidate number (1-{len(DEMO_CANDIDATE_PROFILES)}) and nothing else."""
+
+    try:
+        response = bedrock_client.converse(
+            modelId=model_id,
+            messages=[{"role": "user", "content": [{"text": selection_prompt}]}],
+            system=[{"text": "You are a matchmaking expert. Analyze compatibility and select the best match. Respond with only a number."}],
+            inferenceConfig={
+                "maxTokens": 50,
+                "temperature": 0.3  # Lower temperature for more consistent selection
+            }
+        )
+        
+        # Extract the candidate number from the response
+        response_text = response['output']['message']['content'][0]['text'].strip()
+        
+        # Try to extract just the number
+        numbers = re.findall(r'\d+', response_text)
+        if numbers:
+            candidate_index = int(numbers[0]) - 1  # Convert to 0-based index
+            # Ensure index is valid
+            if 0 <= candidate_index < len(DEMO_CANDIDATE_PROFILES):
+                selected = DEMO_CANDIDATE_PROFILES[candidate_index]
+                print(f"🎭 AI selected candidate: {selected['name']} (index {candidate_index + 1})")
+                return selected['profile']
+        
+        # Fallback: if parsing fails, log and use first candidate
+        print(f"⚠️ Could not parse candidate selection from AI response: {response_text}")
+        print(f"⚠️ Falling back to first candidate")
+        selected = DEMO_CANDIDATE_PROFILES[0]
+        print(f"🎭 Using fallback candidate: {selected['name']}")
+        return selected['profile']
+        
+    except Exception as e:
+        print(f"⚠️ Error selecting candidate with AI: {str(e)}")
+        print(f"⚠️ Falling back to first candidate")
+        selected = DEMO_CANDIDATE_PROFILES[0]
+        print(f"🎭 Using fallback candidate: {selected['name']}")
+        return selected['profile'] 
 
 def lambda_handler(event, context):
     try:
@@ -67,35 +180,20 @@ def lambda_handler(event, context):
         model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
         # ==========================================
-        # MODEL 1: GENERATE THE CANDIDATE PROFILE
+        # SELECT COMPATIBLE CANDIDATE PROFILE
         # ==========================================
-        m1_system_prompt = """You are a creative AI matchmaking engine. 
-Based on the provided user profile, generate a realistic, 3-sentence dating profile for a potential candidate. 
-Give the candidate a distinct personality, career, and hobbies. 
-Do not include any introductory or conversational text; return strictly the profile text.
-IMPORTANT: The user profile will be provided below. Use ALL the information provided to create a well-matched candidate."""
-        
-        m1_user_prompt = f"""User's Profile:
-{user_partner_profile}
-
-Based on this user profile, generate a realistic 3-sentence dating profile for a potential candidate who would be compatible with this user. The candidate should have a distinct personality, career, and hobbies that complement the user's profile."""
-        
-        # Debug: Log what we're sending to Model 1
-        print(f"\n📤 Model 1 Prompt (first 300 chars): {m1_user_prompt[:300]}")
-        print(f"📤 Model 1 Prompt (full length): {len(m1_user_prompt)} characters")
-
-        m1_response = bedrock_client.converse(
-            modelId=model_id,
-            messages=[{"role": "user", "content": [{"text": m1_user_prompt}]}],
-            system=[{"text": m1_system_prompt}],
-            inferenceConfig={
-                "maxTokens": 300,
-                "temperature": 0.8 # Slightly higher temperature for more diverse personality generation
-            }
+        # Use AI to analyze the user's profile and select the most compatible
+        # candidate from our curated list of demo profiles
+        print(f"\n🔍 Analyzing user profile for compatibility matching...")
+        candidate_model_profile = get_compatible_candidate_profile(
+            user_profile=user_partner_profile,
+            bedrock_client=bedrock_client,
+            model_id=model_id
         )
         
-        # Extract the generated candidate profile text
-        candidate_model_profile = m1_response['output']['message']['content'][0]['text'].strip()
+        # Debug: Log the selected candidate profile
+        print(f"\n🎭 Selected candidate profile (first 200 chars): {candidate_model_profile[:200]}")
+        print(f"🎭 Selected candidate profile (full length): {len(candidate_model_profile)} characters")
 
 
         # ==========================================
@@ -130,7 +228,7 @@ Here are the profiles for the date simulation:
 User's Profile:
 {user_partner_profile}
 
-Candidate Profile (Generated):
+Candidate Profile:
 {candidate_model_profile}
 
 Simulate the date and return the JSON response."""

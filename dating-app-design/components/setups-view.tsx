@@ -25,6 +25,20 @@ interface Candidate {
   compatibility: number
   summary: string
   highlights: string[]
+  gender: "male" | "female"
+}
+
+interface FormData {
+  gender?: string
+  orientation?: string
+}
+
+interface ApiResponse {
+  score?: number
+  summary?: string
+  meta?: {
+    candidate_profile?: string
+  }
 }
 
 const CANDIDATES: Candidate[] = [
@@ -47,6 +61,7 @@ const CANDIDATES: Candidate[] = [
       "Grew up near your hometown",
       "Looking for long-term",
     ],
+    gender: "male",
   },
   {
     id: "2",
@@ -67,6 +82,7 @@ const CANDIDATES: Candidate[] = [
       "Dog person",
       "Great sense of humor",
     ],
+    gender: "male",
   },
   {
     id: "3",
@@ -87,6 +103,7 @@ const CANDIDATES: Candidate[] = [
       "Loves Sunday rituals",
       "Design-minded",
     ],
+    gender: "female",
   },
   {
     id: "4",
@@ -107,6 +124,7 @@ const CANDIDATES: Candidate[] = [
       "Ambitious yet balanced",
       "Great communicator",
     ],
+    gender: "female",
   },
   {
     id: "5",
@@ -127,6 +145,7 @@ const CANDIDATES: Candidate[] = [
       "Foodie explorer",
       "Values honesty",
     ],
+    gender: "male",
   },
   {
     id: "6",
@@ -147,8 +166,23 @@ const CANDIDATES: Candidate[] = [
       "Passionate cook",
       "Independent mindset",
     ],
+    gender: "male",
   },
 ]
+
+// Map Lambda candidate names to SetupsView candidates
+const LAMBDA_CANDIDATE_MAP: Record<string, string> = {
+  "Alex - The Creative Nomad (Female)": "Alex",
+  "Riley - The Culinary Artist (Female)": "Sarah",
+  "Casey - The Musician (Female)": "Emma",
+  "Taylor - The Wellness Advocate (Female)": "Sarah",
+  "Quinn - The World Traveler (Female)": "Emma",
+  "Avery - The Bookworm (Female)": "Sarah",
+  "Jordan - The Tech Entrepreneur (Male)": "Alex",
+  "Sam - The Outdoor Enthusiast (Male)": "Dan",
+  "Morgan - The Intellectual Explorer (Male)": "James",
+  "Blake - The Fitness Enthusiast (Male)": "Marco",
+}
 
 interface BubblePosition {
   x: number
@@ -217,14 +251,15 @@ function CandidateBubble({
   const { pos, onPointerDown, onPointerMove, onPointerUp, hasMoved } =
     useDraggable(initialPos, containerRef)
 
+  // Make bubbles larger
   const size =
     candidate.compatibility >= 90
-      ? 100
+      ? 140
       : candidate.compatibility >= 85
-        ? 86
+        ? 120
         : candidate.compatibility >= 80
-          ? 74
-          : 64
+          ? 100
+          : 85
 
   const glowOpacity =
     candidate.compatibility >= 90
@@ -273,11 +308,11 @@ function CandidateBubble({
           className="object-cover opacity-40"
           sizes={`${size}px`}
         />
-        <div className="relative z-10 flex flex-col items-center gap-0.5">
-          <span className="text-sm font-medium text-foreground drop-shadow-md">
+        <div className="relative z-10 flex flex-col items-center gap-1">
+          <span className="text-base font-medium text-foreground drop-shadow-lg">
             {candidate.name}
           </span>
-          <span className="text-[10px] font-medium text-primary drop-shadow-md">
+          <span className="text-sm font-bold text-white drop-shadow-lg">
             {candidate.compatibility}%
           </span>
         </div>
@@ -289,10 +324,14 @@ function CandidateBubble({
 function CandidateDetail({
   candidate,
   onClose,
+  apiResponse,
 }: {
   candidate: Candidate
   onClose: () => void
+  apiResponse?: ApiResponse
 }) {
+  // Use Lambda summary if available, otherwise use candidate summary
+  const displaySummary = apiResponse?.summary || candidate.summary
   return (
     <div className="absolute inset-0 z-50 flex flex-col">
       <div className="absolute inset-0 bg-background/95 backdrop-blur-xl" />
@@ -363,7 +402,7 @@ function CandidateDetail({
             </h3>
             <div className="glass-light rounded-xl px-4 py-3">
               <p className="text-sm text-foreground/85 leading-relaxed">
-                {candidate.summary}
+                {displaySummary}
               </p>
             </div>
           </div>
@@ -377,7 +416,7 @@ function CandidateDetail({
               {candidate.highlights.map((h) => (
                 <span
                   key={h}
-                  className="text-xs font-medium px-3 py-1.5 rounded-full bg-primary/30 text-foreground"
+                  className="text-sm font-medium px-4 py-2 rounded-full bg-primary/30 text-foreground"
                 >
                   {h}
                 </span>
@@ -431,16 +470,95 @@ function CandidateDetail({
   )
 }
 
-// Sort candidates by compatibility descending so highest appear first / top
-const SORTED_CANDIDATES = [...CANDIDATES].sort(
-  (a, b) => b.compatibility - a.compatibility
-)
+// Filter candidates based on user's gender and orientation
+function filterCandidatesByCompatibility(
+  candidates: Candidate[],
+  userGender?: string,
+  userOrientation?: string
+): Candidate[] {
+  if (!userGender || !userOrientation) {
+    return candidates // Show all if no filter info
+  }
+
+  const gender = userGender.toLowerCase()
+  const orientation = userOrientation.toLowerCase()
+
+  return candidates.filter((candidate) => {
+    // Straight: opposite gender
+    if (orientation.includes("straight") || orientation === "heterosexual") {
+      if (gender === "male" || gender === "man") {
+        return candidate.gender === "female"
+      }
+      if (gender === "female" || gender === "woman") {
+        return candidate.gender === "male"
+      }
+    }
+
+    // Gay/Lesbian: same gender
+    if (orientation.includes("gay") || orientation.includes("lesbian")) {
+      if (gender === "male" || gender === "man") {
+        return candidate.gender === "male"
+      }
+      if (gender === "female" || gender === "woman") {
+        return candidate.gender === "female"
+      }
+    }
+
+    // Bisexual/Pansexual: show all
+    if (
+      orientation.includes("bisexual") ||
+      orientation.includes("pansexual") ||
+      orientation.includes("bi")
+    ) {
+      return true
+    }
+
+    // Default: show all if orientation not recognized
+    return true
+  })
+}
+
+// Extract candidate name from Lambda response
+function extractCandidateNameFromLambda(apiResponse?: ApiResponse): string | null {
+  if (!apiResponse?.meta?.candidate_profile) return null
+  
+  const profile = apiResponse.meta.candidate_profile.toLowerCase()
+  
+  // Try to match Lambda candidate names (check for key phrases from each profile)
+  const candidateKeywords: Record<string, string[]> = {
+    "Alex - The Creative Nomad (Female)": ["graphic designer", "vinyl collection", "coffee shops"],
+    "Riley - The Culinary Artist (Female)": ["pastry chef", "michelin", "croissant"],
+    "Casey - The Musician (Female)": ["jazz pianist", "music theory", "vintage records"],
+    "Taylor - The Wellness Advocate (Female)": ["yoga instructor", "wellness coach", "meditation"],
+    "Quinn - The World Traveler (Female)": ["travel photographer", "47 countries", "wanderlust"],
+    "Avery - The Bookworm (Female)": ["librarian", "book club", "magical realism"],
+    "Jordan - The Tech Entrepreneur (Male)": ["startup founder", "speakeasies", "philosophy"],
+    "Sam - The Outdoor Enthusiast (Male)": ["park ranger", "rock climbing", "backpacking"],
+    "Morgan - The Intellectual Explorer (Male)": ["history professor", "ancient civilizations", "museum dates"],
+    "Blake - The Fitness Enthusiast (Male)": ["personal trainer", "nutrition coach", "gym at 6am"],
+  }
+  
+  // Find the candidate with the most matching keywords
+  let bestMatch: string | null = null
+  let bestMatchCount = 0
+  
+  for (const [lambdaName, keywords] of Object.entries(candidateKeywords)) {
+    const matchCount = keywords.filter((keyword) => profile.includes(keyword.toLowerCase())).length
+    if (matchCount > bestMatchCount) {
+      bestMatchCount = matchCount
+      bestMatch = lambdaName
+    }
+  }
+  
+  return bestMatch
+}
 
 function getRadius(compatibility: number) {
-  if (compatibility >= 90) return 50
-  if (compatibility >= 85) return 43
-  if (compatibility >= 80) return 37
-  return 32
+  // Updated to match larger bubble sizes
+  if (compatibility >= 90) return 70
+  if (compatibility >= 85) return 60
+  if (compatibility >= 80) return 50
+  return 42
 }
 
 function scatterPositions(
@@ -511,13 +629,43 @@ function scatterPositions(
   return positions
 }
 
-export function SetupsView() {
+interface SetupsViewProps {
+  formData?: FormData
+  apiResponse?: ApiResponse
+}
+
+export function SetupsView({ formData, apiResponse }: SetupsViewProps = {}) {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
     null
   )
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [positions, setPositions] = useState<BubblePosition[]>([])
   const hasScattered = useRef(false)
+
+  // Filter candidates based on gender/orientation
+  const filteredCandidates = filterCandidatesByCompatibility(
+    CANDIDATES,
+    formData?.gender,
+    formData?.orientation
+  )
+
+  // Update compatibility score from Lambda if available
+  const candidatesWithLambdaScore = filteredCandidates.map((candidate) => {
+    // Try to match Lambda candidate to this candidate
+    const lambdaCandidateName = extractCandidateNameFromLambda(apiResponse)
+    if (lambdaCandidateName) {
+      const mappedName = LAMBDA_CANDIDATE_MAP[lambdaCandidateName]
+      if (mappedName === candidate.name && apiResponse?.score) {
+        return { ...candidate, compatibility: apiResponse.score }
+      }
+    }
+    return candidate
+  })
+
+  // Sort by compatibility
+  const sortedCandidates = [...candidatesWithLambdaScore].sort(
+    (a, b) => b.compatibility - a.compatibility
+  )
 
   useEffect(() => {
     if (hasScattered.current) return
@@ -526,9 +674,9 @@ export function SetupsView() {
     const rect = el.getBoundingClientRect()
     if (rect.width > 0 && rect.height > 0) {
       hasScattered.current = true
-      setPositions(scatterPositions(SORTED_CANDIDATES, rect.width, rect.height))
+      setPositions(scatterPositions(sortedCandidates, rect.width, rect.height))
     }
-  })
+  }, [sortedCandidates])
 
   return (
     <div className="flex flex-col h-full relative">
@@ -543,7 +691,7 @@ export function SetupsView() {
       {/* Bubble canvas */}
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         {positions.length > 0 &&
-          SORTED_CANDIDATES.map((c, i) => (
+          sortedCandidates.map((c, i) => (
             <CandidateBubble
               key={c.id}
               candidate={c}
@@ -559,6 +707,7 @@ export function SetupsView() {
         <CandidateDetail
           candidate={selectedCandidate}
           onClose={() => setSelectedCandidate(null)}
+          apiResponse={apiResponse}
         />
       )}
     </div>
