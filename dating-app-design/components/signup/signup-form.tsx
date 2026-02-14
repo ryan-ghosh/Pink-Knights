@@ -85,7 +85,7 @@ const HEIGHTS = (() => {
 const TOTAL_STEPS = 7
 
 interface SignupFormProps {
-  onComplete?: () => void
+  onComplete?: (formData: FormData) => void
 }
 
 export function SignupForm({ onComplete }: SignupFormProps) {
@@ -174,7 +174,8 @@ export function SignupForm({ onComplete }: SignupFormProps) {
     if (step < TOTAL_STEPS - 1) {
       setStep(step + 1)
     } else {
-      onComplete?.()
+      // Pass form data to parent when complete
+      onComplete?.(formData)
     }
   }
 
