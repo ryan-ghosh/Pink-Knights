@@ -40,10 +40,11 @@ interface FormData {
 interface ApiResponse {
   score: number
   summary: string
-  meta: {
-    compatibility_factors: Record<string, string>
-    potential_concerns: string
-    candidate_profile: string
+  candidate_profile?: string
+  meta?: {
+    compatibility_factors?: Record<string, string>
+    potential_concerns?: string
+    candidate_profile?: string
   }
 }
 
@@ -64,25 +65,93 @@ export default function Home() {
 
   // Handle voice agent completion - store transcript and send to API
   const handleVoiceComplete = async (transcript: string) => {
-    setVoiceTranscript(transcript)
+    // Validate transcript is not empty or just whitespace
+    const trimmedTranscript = transcript?.trim() || ""
+    
+    console.log("\n" + "=".repeat(80))
+    console.log("🎯 FRONTEND: Voice Complete Handler Called")
+    console.log("=".repeat(80))
+    console.log("📋 Received transcript length:", trimmedTranscript.length)
+    console.log("📋 Received transcript:", `"${trimmedTranscript.substring(0, 200)}${trimmedTranscript.length > 200 ? '...' : ''}"`)
+    console.log("📋 Form Data exists:", !!formData)
+    console.log("📋 Form Data keys:", formData ? Object.keys(formData).length : 0)
+    console.log("=".repeat(80) + "\n")
+    
+    setVoiceTranscript(trimmedTranscript)
     
     if (!formData) {
-      console.error("Form data not available")
+      console.error("❌ Form data not available")
       setSubmitError("Form data is missing")
       return
     }
+
+    // Print what we're about to send
+    console.log("\n" + "=".repeat(80))
+    console.log("🎯 FRONTEND: About to send data to Lambda")
+    console.log("=".repeat(80))
+    console.log("📋 Form Data:", JSON.stringify(formData, null, 2))
+    console.log("🎤 Voice Transcript:", trimmedTranscript)
+    console.log("🎤 Voice Transcript Length:", trimmedTranscript.length)
+    console.log("=".repeat(80) + "\n")
 
     setIsSubmitting(true)
     setSubmitError(null)
 
     try {
       // Send form data and voice transcript to API
-      const result = await sendToBackend(formData, transcript)
+      // Use trimmed transcript to ensure we're not sending whitespace
+      const result = await sendToBackend(formData, trimmedTranscript)
 
       if (result.success && result.data) {
-        // Store the API response
-        setApiResponse(result.data as ApiResponse)
-        setPhase("profile-result")
+        // Validate response structure
+        const data = result.data as any
+        console.log("✅ API Response received:", JSON.stringify(data, null, 2))
+        console.log("🔍 Response validation check:", {
+          hasData: !!data,
+          dataType: typeof data,
+          dataKeys: data ? Object.keys(data) : [],
+          hasScore: data && 'score' in data,
+          scoreValue: data?.score,
+          scoreType: typeof data?.score,
+          hasSummary: data && 'summary' in data,
+          summaryValue: data?.summary ? data.summary.substring(0, 50) + "..." : "empty/falsy",
+          summaryType: typeof data?.summary,
+          summaryLength: data?.summary?.length || 0
+        })
+        
+        // Check if response has required fields
+        // Be more explicit: score must be a number (including 0), summary must be a non-empty string
+        const hasValidScore = data && typeof data.score === 'number' && !isNaN(data.score)
+        const hasValidSummary = data && typeof data.summary === 'string' && data.summary.trim().length > 0
+        
+        if (hasValidScore && hasValidSummary) {
+          // Check if the response indicates missing profile (score 0 with error message)
+          if (data.score === 0 && data.summary.toLowerCase().includes("unable to simulate")) {
+            console.error("❌ AI indicates missing profile data:", data.summary.substring(0, 200))
+            setSubmitError("Profile data was not received correctly. Please try again.")
+            return
+          }
+          
+          // Store the API response
+          setApiResponse(data as ApiResponse)
+          setPhase("profile-result")
+        } else {
+          console.error("❌ Invalid API response structure:", data)
+          console.error("❌ Response validation details:", {
+            hasValidScore,
+            hasValidSummary,
+            scoreValue: data?.score,
+            scoreType: typeof data?.score,
+            summaryValue: data?.summary,
+            summaryType: typeof data?.summary,
+            summaryLength: data?.summary?.length,
+            allKeys: data ? Object.keys(data) : []
+          })
+          console.error("❌ Response keys:", Object.keys(data || {}))
+          console.error("❌ Has score:", "score" in (data || {}))
+          console.error("❌ Has summary:", "summary" in (data || {}))
+          setSubmitError("Invalid response from server. Missing required fields.")
+        }
       } else {
         setSubmitError(result.message || "Failed to submit profile")
         console.error("API Error:", result.message)
@@ -169,21 +238,29 @@ export default function Home() {
                   <h2 className="text-lg font-semibold mb-2">Summary</h2>
                   <p className="text-sm text-foreground/80 leading-relaxed">{apiResponse.summary}</p>
                 </div>
-                <div className="glass-strong rounded-xl p-4">
-                  <h2 className="text-lg font-semibold mb-2">Compatibility Factors</h2>
-                  <ul className="space-y-2 text-sm">
-                    {Object.entries(apiResponse.meta.compatibility_factors).map(([key, value]) => (
-                      <li key={key}>
-                        <span className="font-medium capitalize">{key.replace(/_/g, " ")}:</span>{" "}
-                        <span className="text-foreground/70">{value}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {apiResponse.meta.potential_concerns && (
+                {apiResponse.meta?.compatibility_factors && (
+                  <div className="glass-strong rounded-xl p-4">
+                    <h2 className="text-lg font-semibold mb-2">Compatibility Factors</h2>
+                    <ul className="space-y-2 text-sm">
+                      {Object.entries(apiResponse.meta.compatibility_factors).map(([key, value]) => (
+                        <li key={key}>
+                          <span className="font-medium capitalize">{key.replace(/_/g, " ")}:</span>{" "}
+                          <span className="text-foreground/70">{value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {apiResponse.meta?.potential_concerns && (
                   <div className="glass-strong rounded-xl p-4 border border-yellow-500/30">
                     <h2 className="text-lg font-semibold mb-2 text-yellow-500">Potential Concerns</h2>
                     <p className="text-sm text-foreground/80">{apiResponse.meta.potential_concerns}</p>
+                  </div>
+                )}
+                {apiResponse.candidate_profile && (
+                  <div className="glass-strong rounded-xl p-4">
+                    <h2 className="text-lg font-semibold mb-2">Candidate Profile</h2>
+                    <p className="text-sm text-foreground/80 leading-relaxed">{apiResponse.candidate_profile}</p>
                   </div>
                 )}
                 <button

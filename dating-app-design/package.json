@@ -6,7 +6,16 @@
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:voice": "node scripts/test-voice-collection.js",
+    "test:formatting": "node scripts/test-profile-formatting.js",
+    "test:parsing": "node scripts/test-json-parsing.js",
+    "test:flow": "node scripts/test-full-flow.js",
+    "test:speech": "node scripts/test-speech-simulation.js",
+    "test:speech:edges": "node scripts/test-speech-edge-cases.js",
+    "test:speech:integration": "node scripts/test-speech-integration.js",
+    "test:lambda": "node scripts/test-lambda-response-parsing.js",
+    "test:all": "node scripts/run-all-tests.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

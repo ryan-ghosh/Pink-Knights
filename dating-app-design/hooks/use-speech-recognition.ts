@@ -110,17 +110,21 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
 
       // Update final transcript
       if (finalTranscript) {
+        // CRITICAL FIX: Only pass the NEW final transcript, not the accumulated one
+        // The accumulated ref is for display, but onResult should get only the new segment
         finalTranscriptRef.current += finalTranscript
         setState((prev) => ({
           ...prev,
           transcript: finalTranscriptRef.current + interimTranscript,
         }))
-        onResultRef.current?.(finalTranscriptRef.current.trim(), true)
+        // Pass only the NEW final transcript segment, not the entire accumulated transcript
+        onResultRef.current?.(finalTranscript.trim(), true)
       } else if (interimTranscript) {
         setState((prev) => ({
           ...prev,
           transcript: finalTranscriptRef.current + interimTranscript,
         }))
+        // For interim results, pass the current display transcript
         onResultRef.current?.(finalTranscriptRef.current + interimTranscript, false)
       }
     }

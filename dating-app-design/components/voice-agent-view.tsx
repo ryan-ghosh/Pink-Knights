@@ -6,7 +6,7 @@ import { Mic, MicOff, ArrowRight } from "lucide-react"
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition"
 
 const AI_PROMPTS = [
-  "Hey! I'm Hailey, your matchmaker. I'm going to learn a bit about you so I can find your perfect match.",
+  "Hey! I'm Hailey, your matchmaker. I'm going to learn a bit about you so I can find your perfect match. Tell me a little about yourself and your ideal partner.",
   "Tell me -- what does your ideal weekend look like?",
   "Great! What's the most important quality you look for in a partner?",
   "Love that. One more -- what's a dealbreaker for you?",
@@ -25,9 +25,40 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
   const [userResponses, setUserResponses] = useState<string[]>([])
   const userResponsesRef = useRef<string[]>([])
   
-  // Keep ref in sync with state
+  // Keep ref in sync with state (only update ref, don't trigger re-renders)
   useEffect(() => {
     userResponsesRef.current = userResponses
+  }, [userResponses])
+  
+  // Helper function to combine responses (DRY - used in multiple places)
+  const combineAllResponses = useCallback(() => {
+    // Get the most up-to-date responses from state (most reliable)
+    const responsesFromState = userResponses
+    const responsesFromRef = userResponsesRef.current
+    
+    // Use the longer one (most complete) - prefer state as it's more reliable
+    let allResponses = responsesFromState.length >= responsesFromRef.length 
+      ? [...responsesFromState]
+      : [...responsesFromRef]
+    
+    // Remove any empty strings
+    allResponses = allResponses.filter(r => r && r.trim().length > 0)
+    
+    // Remove duplicates while preserving order
+    const uniqueResponses: string[] = []
+    const seen = new Set<string>()
+    allResponses.forEach(r => {
+      const trimmed = r.trim()
+      if (trimmed && !seen.has(trimmed)) {
+        uniqueResponses.push(trimmed)
+        seen.add(trimmed)
+      }
+    })
+    
+    // Update ref for consistency
+    userResponsesRef.current = uniqueResponses
+    
+    return uniqueResponses
   }, [userResponses])
 
   // Initialize speech recognition for real voice input
@@ -43,10 +74,25 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
     continuous: true,
     interimResults: true,
     onResult: (text, isFinal) => {
-      if (isFinal) {
-        // Store the final response
-        setUserResponses((prev) => [...prev, text.trim()])
-        resetTranscript()
+      if (isFinal && text.trim()) {
+        const trimmedText = text.trim()
+        // Store the final response - only add if not already present (avoid duplicates)
+        setUserResponses((prev) => {
+          // Check if this exact text is already in the array
+          if (prev.includes(trimmedText)) {
+            return prev
+          }
+          const updated = [...prev, trimmedText]
+          userResponsesRef.current = updated
+          console.log("🎤 onResult - Added response:", {
+            text: trimmedText.substring(0, 50),
+            totalResponses: updated.length,
+            allResponses: updated
+          })
+          return updated
+        })
+        // Don't reset here - let handleUserResponseComplete handle it
+        // This ensures we capture the complete response
       }
     },
     onError: (error) => {
@@ -95,6 +141,39 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
       stopListening()
     }
     
+    // Capture the current transcript before moving to next prompt
+    // This ensures we get the complete response even if onResult didn't fire
+    // Use a longer delay to ensure speech recognition has finalized
+    setTimeout(() => {
+      // Access transcript - it should be up to date after the delay
+      const currentTranscript = transcript.trim()
+      
+      if (currentTranscript) {
+        // Use functional update to ensure we have latest state
+        setUserResponses((prev) => {
+          // Check if we already have this exact transcript
+          const alreadyHasTranscript = prev.some(r => r.trim() === currentTranscript) ||
+                                     userResponsesRef.current.some(r => r.trim() === currentTranscript)
+          
+          if (!alreadyHasTranscript) {
+            const updated = [...prev, currentTranscript]
+            userResponsesRef.current = updated
+            console.log("🎤 handleUserResponseComplete - Added transcript:", {
+              text: currentTranscript.substring(0, 50),
+              totalResponses: updated.length,
+              allResponses: updated
+            })
+            resetTranscript() // Clear for next prompt
+            return updated
+          }
+          
+          return prev // No change
+        })
+      } else {
+        console.log("⚠️  handleUserResponseComplete - No transcript to capture")
+      }
+    }, 800) // Longer delay to ensure speech recognition has finalized
+    
     // Wait a bit for state to settle, then move to next prompt
     setTimeout(() => {
       setCurrentPromptIndex((prevIndex) => {
@@ -105,8 +184,19 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
           if (nextIndex >= AI_PROMPTS.length) {
             // All prompts done, combine user responses and complete
             setIsComplete(true)
-            const combinedTranscript = userResponsesRef.current.join(" ")
+            
+            // Wait a bit to ensure all responses are captured
             setTimeout(() => {
+              const uniqueResponses = combineAllResponses()
+              const combinedTranscript = uniqueResponses.join(" ").trim()
+              
+              console.log("🎤 Voice completion - Final transcript:", {
+                uniqueResponses: uniqueResponses.length,
+                combinedLength: combinedTranscript.length,
+                responses: uniqueResponses,
+                combined: combinedTranscript.substring(0, 200)
+              })
+              
               onComplete(combinedTranscript)
             }, 2500)
             return
@@ -116,18 +206,44 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
           setIsSpeaking(true)
           setShowCaption(AI_PROMPTS[nextIndex])
           
-          // After AI speaks, wait for user response
+          // Check if this is the final prompt (last one in the array)
+          const isFinalPrompt = nextIndex === AI_PROMPTS.length - 1
+          
+          // After AI speaks, wait for user response (only if not final prompt)
           const duration = Math.max(2000, AI_PROMPTS[nextIndex].length * 40)
           setTimeout(() => {
             setIsSpeaking(false)
-            setShowCaption("")
-            // Start listening for user response - with a small delay to ensure state is ready
-            if (isSupported) {
+            
+            if (isFinalPrompt) {
+              // This is the final prompt - don't listen, just complete
+              setShowCaption("")
+              setIsComplete(true)
+              
+              // Wait a bit to ensure all responses are captured
               setTimeout(() => {
-                startListening().catch(err => {
-                  console.error("Failed to start listening:", err)
+                const uniqueResponses = combineAllResponses()
+                const combinedTranscript = uniqueResponses.join(" ").trim()
+                
+                console.log("🎤 Voice completion (final prompt) - Final transcript:", {
+                  uniqueResponses: uniqueResponses.length,
+                  combinedLength: combinedTranscript.length,
+                  responses: uniqueResponses,
+                  combined: combinedTranscript.substring(0, 200)
                 })
-              }, 200)
+                
+                onComplete(combinedTranscript)
+              }, 1500)
+            } else {
+              // Not the final prompt - show empty caption and start listening
+              setShowCaption("")
+              // Start listening for user response - with a small delay to ensure state is ready
+              if (isSupported) {
+                setTimeout(() => {
+                  startListening().catch(err => {
+                    console.error("Failed to start listening:", err)
+                  })
+                }, 200)
+              }
             }
           }, duration)
         }, 100) // Small delay to ensure state is updated
@@ -135,7 +251,7 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
         return nextIndex
       })
     }, 300) // Wait for stopListening to complete
-  }, [isListening, stopListening, onComplete, isSupported, startListening])
+  }, [isListening, stopListening, onComplete, isSupported, startListening, transcript, resetTranscript, combineAllResponses])
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6 relative">
@@ -241,10 +357,19 @@ export function VoiceAgentView({ onComplete }: VoiceAgentViewProps) {
       </div>
 
       {/* Skip button - bottom right */}
-      {!isComplete && (
+        {!isComplete && (
         <button
           onClick={() => {
-            const combinedTranscript = userResponses.join(" ")
+            const uniqueResponses = combineAllResponses()
+            const combinedTranscript = uniqueResponses.join(" ").trim()
+            
+            console.log("🎤 Skip button - Final transcript:", {
+              uniqueResponses: uniqueResponses.length,
+              combinedLength: combinedTranscript.length,
+              responses: uniqueResponses,
+              combined: combinedTranscript.substring(0, 200)
+            })
+            
             onComplete(combinedTranscript)
           }}
           className="absolute bottom-8 right-6 z-20 flex items-center gap-2 rounded-full glass-strong px-5 py-2.5 text-sm font-medium text-foreground/80 transition-all duration-200 hover:text-foreground hover:bg-foreground/10"
