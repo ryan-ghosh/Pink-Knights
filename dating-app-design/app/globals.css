@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 270 30% 18%;
+    --foreground: 260 30% 96%;
+    --card: 270 25% 24%;
+    --card-foreground: 260 30% 96%;
+    --popover: 270 25% 24%;
+    --popover-foreground: 260 30% 96%;
+    --primary: 260 50% 65%;
+    --primary-foreground: 260 30% 96%;
+    --secondary: 270 20% 30%;
+    --secondary-foreground: 260 30% 92%;
+    --muted: 270 20% 26%;
+    --muted-foreground: 260 15% 68%;
+    --accent: 190 45% 55%;
+    --accent-foreground: 260 30% 96%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 270 20% 32%;
+    --input: 270 20% 26%;
+    --ring: 260 50% 65%;
+    --chart-1: 260 60% 55%;
+    --chart-2: 190 50% 45%;
+    --chart-3: 320 40% 50%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 1rem;
+    --glass: 270 30% 32%;
+    --glass-foreground: 260 30% 96%;
+    --glass-border: 260 35% 55%;
+    --nav: 0 0% 3%;
+    --nav-foreground: 260 15% 68%;
+    --nav-active: 260 30% 96%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glass morphism utility */
+.glass {
+  background: hsla(var(--glass) / 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsla(var(--glass-border) / 0.2);
+}
+
+.glass-strong {
+  background: hsla(var(--glass) / 0.55);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid hsla(var(--glass-border) / 0.25);
+}
+
+.glass-light {
+  background: hsla(260 30% 96% / 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid hsla(260 30% 96% / 0.15);
+}
+
+/* ---- AI Orb Animations ---- */
+
+/* Idle state - gentle breathing pulse */
+.ai-orb-glow-idle {
+  background: radial-gradient(circle, hsla(270 60% 60% / 0.25) 0%, hsla(270 60% 60% / 0) 70%);
+  animation: orb-breathe 4s ease-in-out infinite;
+}
+.ai-orb-ring-idle {
+  background: radial-gradient(circle, hsla(270 55% 55% / 0.15) 0%, hsla(260 50% 60% / 0.05) 60%, transparent 70%);
+  animation: orb-breathe 4s ease-in-out infinite 0.5s;
+}
+.ai-orb-core-idle {
+  background: radial-gradient(circle at 40% 35%, hsl(270 50% 70%), hsl(260 55% 50%) 50%, hsl(280 45% 35%) 100%);
+  box-shadow: 0 0 30px hsla(270 60% 55% / 0.4), 0 0 60px hsla(260 50% 50% / 0.2), inset 0 0 20px hsla(280 50% 40% / 0.3);
+  animation: orb-core-breathe 4s ease-in-out infinite;
+}
+.ai-orb-inner-idle {
+  background: radial-gradient(circle, hsla(270 60% 80% / 0.6) 0%, hsla(260 50% 65% / 0.2) 100%);
+  animation: orb-inner-pulse 4s ease-in-out infinite;
+}
+
+/* Listening state - alert pulsing */
+.ai-orb-glow-listening {
+  background: radial-gradient(circle, hsla(270 70% 65% / 0.35) 0%, hsla(270 60% 60% / 0) 70%);
+  animation: orb-breathe 2s ease-in-out infinite;
+}
+.ai-orb-ring-listening {
+  background: radial-gradient(circle, hsla(270 60% 60% / 0.2) 0%, hsla(260 55% 65% / 0.08) 60%, transparent 70%);
+  animation: orb-breathe 2s ease-in-out infinite 0.3s;
+}
+.ai-orb-core-listening {
+  background: radial-gradient(circle at 40% 35%, hsl(270 55% 75%), hsl(260 60% 55%) 50%, hsl(280 50% 40%) 100%);
+  box-shadow: 0 0 40px hsla(270 70% 60% / 0.5), 0 0 80px hsla(260 55% 55% / 0.25), inset 0 0 25px hsla(280 55% 45% / 0.3);
+  animation: orb-core-breathe 2s ease-in-out infinite;
+}
+.ai-orb-inner-listening {
+  background: radial-gradient(circle, hsla(270 70% 85% / 0.7) 0%, hsla(260 55% 70% / 0.3) 100%);
+  animation: orb-inner-pulse 2s ease-in-out infinite;
+}
+
+/* Speaking state - active wave/beat */
+.ai-orb-glow-speaking {
+  background: radial-gradient(circle, hsla(270 75% 70% / 0.45) 0%, hsla(260 65% 60% / 0) 70%);
+  animation: orb-speak-glow 1.2s ease-in-out infinite;
+}
+.ai-orb-ring-speaking {
+  background: radial-gradient(circle, hsla(270 65% 65% / 0.25) 0%, hsla(260 60% 70% / 0.1) 60%, transparent 70%);
+  animation: orb-speak-ring 1.2s ease-in-out infinite 0.15s;
+}
+.ai-orb-core-speaking {
+  background: radial-gradient(circle at 40% 35%, hsl(270 60% 80%), hsl(260 65% 60%) 50%, hsl(280 55% 42%) 100%);
+  box-shadow: 0 0 50px hsla(270 75% 65% / 0.6), 0 0 100px hsla(260 60% 55% / 0.3), inset 0 0 30px hsla(280 60% 50% / 0.35);
+  animation: orb-speak-core 1.2s ease-in-out infinite;
+}
+.ai-orb-inner-speaking {
+  background: radial-gradient(circle, hsla(270 80% 90% / 0.8) 0%, hsla(260 60% 75% / 0.4) 100%);
+  animation: orb-speak-inner 1.2s ease-in-out infinite;
+}
+
+@keyframes orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes orb-core-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes orb-inner-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 0.9; }
+}
+
+@keyframes orb-speak-glow {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  30% { transform: scale(1.15); opacity: 1; }
+  60% { transform: scale(1.05); opacity: 0.8; }
+}
+
+@keyframes orb-speak-ring {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  40% { transform: scale(1.12); opacity: 1; }
+}
+
+@keyframes orb-speak-core {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.07); }
+  50% { transform: scale(0.97); }
+  75% { transform: scale(1.04); }
+}
+
+@keyframes orb-speak-inner {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  25% { transform: scale(1.2); opacity: 1; }
+  50% { transform: scale(0.9); opacity: 0.6; }
+  75% { transform: scale(1.15); opacity: 0.9; }
+}
